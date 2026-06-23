@@ -3,9 +3,8 @@ const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROOM_ID = process.env.ROOM_ID || 'phong_dich_thuat_1'; // Bạn có thể đổi trong setting của Render
+const ROOM_ID = process.env.ROOM_ID || 'phong_dich_thuat_1'; 
 
-// API giữ server sống
 app.get('/', (req, res) => {
     res.send(`🟢 Máy ảo A (Tàng hình) đang chạy ngon lành tại phòng: ${ROOM_ID}`);
 });
@@ -18,7 +17,6 @@ app.listen(PORT, () => {
 async function startGhostMachine() {
     console.log("Đang khởi động Trình duyệt Tàng hình...");
     
-    // Khởi chạy trình duyệt Chromium ẩn (bỏ qua cảnh báo bảo mật để không bị chặn)
     const browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -30,18 +28,15 @@ async function startGhostMachine() {
     });
 
     const page = await browser.newPage();
-    
-    // Tắt Content Security Policy để tiêm được thư viện PeerJS vào web bị chặn
     await page.setBypassCSP(true);
-    
-    // Đặt kích thước màn hình giả lập (Chuẩn PC)
     await page.setViewport({ width: 1366, height: 768 });
 
-    // HÀM TIÊM MÃ TỰ ĐỘNG: Code này sẽ được tự động tiêm vào MỌI TRANG WEB mà trình duyệt ảo này đi tới
+    // [BỔ SUNG V11] Giả lập trình duyệt Chrome thật trên máy tính để bẻ các trang quét Bot
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
     await page.evaluateOnNewDocument(`
         window._GHOST_ROOM_ID = "${ROOM_ID}";
         
-        // Tiêm logic Máy A (Bản V9)
         function initGhostA() {
             if (window._p2pGhostInitialized) return;
             window._p2pGhostInitialized = true;
@@ -189,19 +184,14 @@ async function startGhostMachine() {
                 });
             }
 
-            // Đợi trang load xong là chạy
             window.addEventListener('DOMContentLoaded', () => {
                 loadPeerJS(initConnection);
             });
         }
         
-        // Gọi kích hoạt
         initGhostA();
     `);
 
-    // Khởi tạo điểm đến ban đầu (Trang trắng chứa máy A để chờ bạn gọi lệnh)
-    console.log("Đã tiêm mã P2P V9 thành công. Mở cổng chờ kết nối...");
+    console.log("Mở cổng chờ kết nối...");
     await page.goto('https://example.com'); 
-    
-    // Trình duyệt sẽ treo ở đây mãi mãi để phục vụ bạn.
 }
