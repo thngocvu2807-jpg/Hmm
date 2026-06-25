@@ -3,11 +3,8 @@ const puppeteer = require('puppeteer');
 const https = require('https');
 
 const app = express();
-app.use(express.json()); // Để đọc dữ liệu JSON gửi lên từ Web
+app.use(express.json()); 
 const PORT = process.env.PORT || 3000;
-
-const SHARE_CODE = process.env.SHARE_CODE || 'BOT-VIP-9999'; 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''; 
 
 // =========================================================================
 // TRẠM THÔNG TIN THEO DÕI BOT
@@ -22,7 +19,7 @@ let botStatus = {
     logs: []
 };
 
-let shouldStopBot = false; // Cờ hiệu để ngắt Bot
+let shouldStopBot = false; 
 
 function addLog(msg, type = 'info') {
     const time = new Date().toLocaleTimeString('vi-VN');
@@ -32,24 +29,32 @@ function addLog(msg, type = 'info') {
 }
 
 // =========================================================================
-// API & GIAO DIỆN WEB DASHBOARD (XEM TRỰC TIẾP TRÊN LINK RENDER)
+// API & GIAO DIỆN WEB DASHBOARD
 // =========================================================================
 app.get('/api/status', (req, res) => res.json(botStatus));
 
 // Nhận lệnh BẮT ĐẦU từ Web
 app.post('/api/start', async (req, res) => {
-    if (!GEMINI_API_KEY) return res.status(400).json({ error: 'Chưa cấu hình GEMINI_API_KEY trên Render!' });
-    if (botStatus.isRunning) return res.status(400).json({ error: 'Bot đang chạy rồi!' });
-    if (!req.body.url) return res.status(400).json({ error: 'Vui lòng nhập Link!' });
+    const { url, apiKey, shareCode, model, prompt } = req.body;
 
-    const targetUrl = req.body.url.trim();
-    if (!targetUrl.startsWith('http')) return res.status(400).json({ error: 'Link phải bắt đầu bằng http hoặc https' });
+    if (botStatus.isRunning) return res.status(400).json({ error: 'Bot đang chạy rồi!' });
+    if (!url) return res.status(400).json({ error: 'Vui lòng nhập Link truy cập!' });
+    if (!apiKey) return res.status(400).json({ error: 'Vui lòng nhập Gemini API Key!' });
+    if (!url.startsWith('http')) return res.status(400).json({ error: 'Link phải bắt đầu bằng http hoặc https' });
 
     res.json({ success: true, message: 'Đã nhận lệnh khởi động!' });
     
-    // Khởi chạy ngầm
+    // Cấu hình linh hoạt theo người dùng gửi lên
+    const config = {
+        startUrl: url.trim(),
+        geminiKey: apiKey.trim(),
+        shareCode: shareCode.trim() || 'VIP_BOT_1',
+        model: model.trim() || 'gemini-3.1-flash-lite',
+        customPrompt: prompt.trim()
+    };
+
     shouldStopBot = false;
-    startFarmBot(targetUrl);
+    startFarmBot(config);
 });
 
 // Nhận lệnh DỪNG từ Web
@@ -57,7 +62,7 @@ app.post('/api/stop', (req, res) => {
     if (!botStatus.isRunning) return res.status(400).json({ error: 'Bot vốn đã dừng!' });
     shouldStopBot = true;
     botStatus.state = 'Đang tiến hành ngắt kết nối...';
-    addLog('Nhận lệnh DỪNG từ người dùng. Bot sẽ dừng sau khi xử lý xong tác vụ hiện tại.', 'warn');
+    addLog('Nhận lệnh DỪNG. Bot sẽ dừng sau khi xử lý xong tác vụ hiện tại.', 'warn');
     res.json({ success: true });
 });
 
@@ -71,24 +76,28 @@ app.get('/', (req, res) => {
         <title>🤖 Trạm Điều Khiển Nông Trại AI</title>
         <style>
             body { background: #0f172a; color: #cbd5e1; font-family: monospace; margin: 0; padding: 20px; }
-            .container { max-width: 800px; margin: auto; background: #1e293b; padding: 20px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; }
-            h1 { color: #38bdf8; text-align: center; border-bottom: 2px dashed #334155; padding-bottom: 10px; }
+            .container { max-width: 900px; margin: auto; background: #1e293b; padding: 20px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; }
+            h1 { color: #38bdf8; text-align: center; border-bottom: 2px dashed #334155; padding-bottom: 10px; margin-top: 0;}
             
-            /* GIAO DIỆN NHẬP LINK */
-            .control-panel { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #3b82f6; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
-            input[type="url"] { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #475569; background: #1e293b; color: #fff; font-family: monospace; font-size: 14px; min-width: 200px; }
-            button { padding: 10px 20px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; font-family: monospace; }
+            /* GIAO DIỆN CẤU HÌNH */
+            .control-panel { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #3b82f6; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+            .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
+            input, select, textarea { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #475569; background: #1e293b; color: #fff; font-family: monospace; font-size: 14px; min-width: 200px; }
+            textarea { resize: vertical; min-height: 80px; width: 100%; box-sizing: border-box;}
+            
+            .btn-group { display: flex; gap: 10px; margin-top: 10px;}
+            button { flex: 1; padding: 12px 20px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; font-family: monospace; font-size: 15px;}
             button:hover { opacity: 0.8; }
             .btn-start { background: #10b981; color: #fff; }
             .btn-stop { background: #ef4444; color: #fff; }
 
             .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .card { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
-            .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; }
-            .value { color: #fff; font-size: 15px; font-weight: bold; margin-top: 5px; word-break: break-all; }
+            .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }
+            .value { color: #fff; font-size: 15px; font-weight: bold; word-break: break-all; }
             .val-green { color: #10b981; } .val-red { color: #ef4444; } .val-yellow { color: #f59e0b; }
             
-            #log-box { background: #000; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; font-size: 13px; line-height: 1.5; border: 1px solid #334155; }
+            #log-box { background: #000; padding: 15px; border-radius: 8px; height: 350px; overflow-y: auto; font-size: 13px; line-height: 1.5; border: 1px solid #334155; }
             .log-time { color: #64748b; margin-right: 10px; }
             .log-info { color: #38bdf8; } .log-success { color: #10b981; } .log-error { color: #ef4444; } .log-warn { color: #f59e0b; }
         </style>
@@ -98,18 +107,32 @@ app.get('/', (req, res) => {
             <h1>🤖 ĐIỀU KHIỂN NÔNG TRẠI BOT P2P</h1>
             
             <div class="control-panel">
-                <input type="url" id="bot-url" placeholder="Nhập link chương 1 (Ví dụ: https://69shuba.com/txt/123/1.html)" />
-                <button class="btn-start" onclick="startBot()" id="btnStart">▶ KHỞI ĐỘNG CÀO</button>
-                <button class="btn-stop" onclick="stopBot()" id="btnStop">⏹ DỪNG LẠI</button>
+                <div class="label" style="color: #3b82f6;">⚙️ CẤU HÌNH BOT CÀO DỮ LIỆU:</div>
+                <div class="input-group">
+                    <input type="text" id="bot-api" placeholder="Nhập Gemini API Key (Bắt buộc)..." />
+                    <input type="text" id="bot-share" placeholder="Mã Share Code (Mặc định: VIP_BOT_1)" value="VIP_BOT_1" />
+                    <select id="bot-model">
+                        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Siêu nhanh - Khuyên dùng)</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                        <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro (Chậm, Dễ Limit)</option>
+                    </select>
+                </div>
+                <textarea id="bot-prompt">Bạn là một dịch giả xuất sắc. Nhiệm vụ của bạn là dịch đoạn tiểu thuyết tiếng Trung/Anh sau sang Tiếng Việt chuẩn xác, mượt mà, đậm chất văn học. Tuyệt đối giữ nguyên định dạng đoạn văn, không cắt xén, không tự giải thích thêm.</textarea>
+                <input type="url" id="bot-url" placeholder="Nhập Link chương đầu tiên (Ví dụ: https://www.69shuba.com/txt/83216/39104252)" />
+                
+                <div class="btn-group">
+                    <button class="btn-start" onclick="startBot()" id="btnStart">▶ KHỞI ĐỘNG CÀO 24/24</button>
+                    <button class="btn-stop" onclick="stopBot()" id="btnStop">⏹ DỪNG LẠI</button>
+                </div>
             </div>
 
             <div class="grid">
-                <div class="card"><div class="label">Mã Mời (Share Code) của Bot:</div><div class="value val-yellow">${SHARE_CODE}</div></div>
-                <div class="card"><div class="label">Trạng Thái Hoạt Động:</div><div class="value" id="ui-state">Đang tải...</div></div>
+                <div class="card"><div class="label">Trạng Thái Hoạt Động:</div><div class="value val-yellow" id="ui-state">Đang tải...</div></div>
+                <div class="card"><div class="label">Tiêu đề chương hiện tại:</div><div class="value val-green" id="ui-chapter">Chưa có</div></div>
                 <div class="card"><div class="label">Số chương đã dịch (Thành công):</div><div class="value val-green" id="ui-success">0</div></div>
                 <div class="card"><div class="label">Số lần gặp lỗi / sụp đổ:</div><div class="value val-red" id="ui-errors">0</div></div>
-                <div class="card" style="grid-column: span 2;"><div class="label">Đang làm việc tại URL:</div><div class="value" id="ui-url">Đang tải...</div></div>
-                <div class="card" style="grid-column: span 2;"><div class="label">Tiêu đề chương hiện tại:</div><div class="value val-green" id="ui-chapter">Đang tải...</div></div>
+                <div class="card" style="grid-column: span 2;"><div class="label">Đang làm việc tại URL:</div><div class="value" id="ui-url">Chưa có</div></div>
             </div>
             
             <div class="label" style="margin-bottom: 5px;">NHẬT KÝ HỆ THỐNG TRỰC TIẾP (LIVE LOGS):</div>
@@ -119,16 +142,24 @@ app.get('/', (req, res) => {
         <script>
             async function startBot() {
                 const url = document.getElementById('bot-url').value;
+                const apiKey = document.getElementById('bot-api').value;
+                const shareCode = document.getElementById('bot-share').value;
+                const model = document.getElementById('bot-model').value;
+                const prompt = document.getElementById('bot-prompt').value;
+
                 if(!url) return alert("Vui lòng nhập link!");
+                if(!apiKey) return alert("Vui lòng nhập Gemini API Key!");
+
                 document.getElementById('btnStart').innerText = "Đang gửi lệnh...";
                 try {
                     const res = await fetch('/api/start', {
-                        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url })
+                        method: 'POST', headers: {'Content-Type': 'application/json'}, 
+                        body: JSON.stringify({ url, apiKey, shareCode, model, prompt })
                     });
                     const data = await res.json();
                     if(data.error) alert("Lỗi: " + data.error);
                 } catch(e) { alert("Lỗi mạng!"); }
-                document.getElementById('btnStart').innerText = "▶ KHỞI ĐỘNG CÀO";
+                document.getElementById('btnStart').innerText = "▶ KHỞI ĐỘNG CÀO 24/24";
             }
 
             async function stopBot() {
@@ -168,11 +199,11 @@ app.listen(PORT, () => {
     startAntiSleep();
 });
 
-// Giữ server sống
+// Giữ server sống trên Render
 function startAntiSleep() {
-    const MY_URL = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}.onrender.com`;
+    const MY_URL = process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : `http://localhost:${PORT}`;
     setInterval(() => {
-        if (process.env.RENDER_EXTERNAL_HOSTNAME) {
+        if (MY_URL.includes('onrender')) {
             https.get(MY_URL).on('error', () => {});
         }
     }, 10 * 60 * 1000);
@@ -181,27 +212,39 @@ function startAntiSleep() {
 // =========================================================================
 // HỆ THỐNG BOT CÀY CUỐC 24/24 THÔNG MINH
 // =========================================================================
-async function startFarmBot(startUrl) {
+async function startFarmBot(config) {
     botStatus.isRunning = true;
     botStatus.state = 'Đang khởi chạy Chrome ảo...';
-    let currentUrl = startUrl;
+    let currentUrl = config.startUrl;
     addLog(`Chuẩn bị cào dữ liệu từ: ${currentUrl}`, 'info');
     
     let browser;
     try {
         browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-dev-shm-usage']
         });
 
         const page = await browser.newPage();
         await page.setViewport({ width: 1366, height: 768 });
 
+        // Chặn tải hình ảnh, CSS, Fonts để tối ưu RAM và tốc độ cào
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            if(['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
         await page.exposeFunction('reportStatusToNode', (type, message) => { addLog(message, type); });
 
         await page.evaluateOnNewDocument(`
-            window.BOT_SHARE_CODE = "${SHARE_CODE}";
-            window.GEMINI_API_KEY = "${GEMINI_API_KEY}";
+            window.BOT_SHARE_CODE = "${config.shareCode}";
+            window.GEMINI_API_KEY = "${config.geminiKey}";
+            window.BOT_MODEL = "${config.model}";
+            window.BOT_PROMPT = \`${config.customPrompt}\`;
         `);
 
         // Thuật toán Mã hóa và Nostr P2P
@@ -288,19 +331,22 @@ async function startFarmBot(startUrl) {
                 });
             };
             
-            // SỬ DỤNG CHÍNH XÁC GEMINI 3.1 FLASH LITE
-            window.callGeminiAPI = async (prompt) => {
-                const url = \`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=\${window.GEMINI_API_KEY}\`;
+            // Hàm gọi AI linh hoạt theo Model và Prompt cấu hình
+            window.callGeminiAPI = async (textToTranslate) => {
+                const url = \`https://generativelanguage.googleapis.com/v1beta/models/\${window.BOT_MODEL}:generateContent?key=\${window.GEMINI_API_KEY}\`;
+                
+                const finalPrompt = window.BOT_PROMPT + "\\n\\n[NỘI DUNG CẦN DỊCH]:\\n" + textToTranslate;
+
                 try {
                     const res = await fetch(url, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1 } })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }], generationConfig: { temperature: 0.1 } })
                     });
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     return data.candidates[0].content.parts[0].text;
                 } catch(e) { 
-                    await window.reportStatusToNode('error', 'Lỗi gọi API 3.1 Flash Lite: ' + e.message);
+                    await window.reportStatusToNode('error', 'Lỗi API ' + window.BOT_MODEL + ': ' + e.message);
                     return null; 
                 }
             };
@@ -315,24 +361,60 @@ async function startFarmBot(startUrl) {
             try {
                 await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
                 
+                // Đợi thêm 1s để JS render văn bản (Đặc trị 69shuba và trang lậu)
+                await new Promise(r => setTimeout(r, 1000));
+
                 const result = await page.evaluate(async () => {
-                    await window.reportStatusToNode('info', 'Trang đã tải, đang tìm nội dung truyện...');
+                    await window.reportStatusToNode('info', 'Trang đã tải, đang quét tìm văn bản siêu tốc...');
                     
-                    const contentContainer = document.querySelector('article, main, .read-content, .chapter-content, #chapterContent, .text-wrap') || document.body;
-                    const rawText = contentContainer.innerText.substring(0, 5000); 
+                    // THUẬT TOÁN DOM HEURISTIC: Tự động vét cạn văn bản thông minh thay vì dựa vào Class cố định
+                    let contentContainer = null;
+                    
+                    // 1. Thử các Class phổ biến nhất của web truyện (bao gồm cả 69shuba)
+                    const popularSelectors = ['#content', '.txtnav', '#chaptercontent', '.read-content', '.chapter-content', '.book_con', '#TextContent', 'article', 'main'];
+                    for (let sel of popularSelectors) {
+                        let el = document.querySelector(sel);
+                        if (el && el.innerText.trim().length > 300) { 
+                            contentContainer = el; 
+                            break; 
+                        }
+                    }
+
+                    // 2. Tự động bấu víu: Nếu vẫn không tìm thấy, quét toàn bộ thẻ DIV để tìm cục chứa nhiều chữ nhất
+                    if (!contentContainer) {
+                        let maxLen = 0;
+                        document.querySelectorAll('div, section').forEach(el => {
+                            let textLen = el.innerText.trim().length;
+                            // Bỏ qua các thẻ chứa quá nhiều link (thường là footer, header, menu)
+                            let aCount = el.querySelectorAll('a').length;
+                            if (textLen > maxLen && aCount < 10) {
+                                maxLen = textLen;
+                                contentContainer = el;
+                            }
+                        });
+                    }
+
+                    if (!contentContainer) return { error: "Không tìm thấy nội dung truyện (Trang có thể bị lỗi, captcha, hoặc rỗng)." };
+
+                    // Dọn dẹp rác HTML (script, style, quảng cáo chìm) trước khi lấy chữ
+                    const clonedContainer = contentContainer.cloneNode(true);
+                    clonedContainer.querySelectorAll('script, style, iframe, nav, header, footer').forEach(e => e.remove());
+                    
+                    const rawText = clonedContainer.innerText.substring(0, 5000); 
                     
                     let title = document.title;
                     const titleEl = document.querySelector('h1, .chapter-title, .title');
                     if (titleEl) title = titleEl.innerText;
 
-                    if (!rawText || rawText.trim().length < 50) return { error: "Không tìm thấy nội dung truyện (Text quá ngắn)." };
+                    if (!rawText || rawText.trim().length < 150) return { error: "Văn bản quét được quá ngắn (Dưới 150 ký tự)." };
 
-                    await window.reportStatusToNode('warn', `Bắt đầu gửi ${rawText.length} ký tự cho Gemini 3.1 Flash Lite...`);
-                    const prompt = `Bạn là một dịch giả xuất sắc. Dịch toàn bộ văn bản sau sang Tiếng Việt chuẩn xác, mượt mà. Giữ nguyên định dạng đoạn văn.\n\n[NỘI DUNG]:\n${rawText}`;
-                    const translatedText = await window.callGeminiAPI(prompt);
+                    await window.reportStatusToNode('warn', `Bắt đầu gửi ${rawText.length} ký tự cho AI [${window.BOT_MODEL}]...`);
                     
-                    if (!translatedText) return { error: "Lỗi phản hồi từ Gemini." };
-                    await window.reportStatusToNode('success', `Dịch thành công! (${translatedText.length} ký tự). Đang tải lên P2P...`);
+                    // GỌI AI DỊCH THUẬT
+                    const translatedText = await window.callGeminiAPI(rawText);
+                    
+                    if (!translatedText) return { error: "Lỗi phản hồi từ Gemini (Có thể hết Quota API hoặc Limit)." };
+                    await window.reportStatusToNode('success', `Dịch thành công! (${translatedText.length} ký tự). Đang mã hóa và tải lên P2P...`);
 
                     const getUrlHash = (url) => {
                         let u = url.split('?')[0].split('#')[0]; if (u.endsWith('/')) u = u.slice(0, -1);
@@ -360,16 +442,22 @@ async function startFarmBot(startUrl) {
                     await window.publishToNostr(keyUrlHash, syncPayload);
                     await window.publishToNostr(keySmartHash, syncPayload);
 
-                    const chapPayload = { chapters: [{ id: cidHash, n: "Nông trại Bot P2P", c: title, u: window.location.href, t: Date.now(), a: "AI 3.1 Flash Lite", summary: translatedText.substring(0, 250) + "..." }], time: Date.now() };
+                    const chapPayload = { chapters: [{ id: cidHash, n: "Nông trại Bot P2P", c: title, u: window.location.href, t: Date.now(), a: "AI " + window.BOT_MODEL, summary: translatedText.substring(0, 250) + "..." }], time: Date.now() };
                     const keyChapters = await window.BOT_CRYPTO.hashSHA256("P2P_CHAPTERS_" + window.BOT_SHARE_CODE);
                     await window.publishToNostr(keyChapters, chapPayload);
 
+                    // THUẬT TOÁN TÌM NÚT "CHƯƠNG TIẾP THEO" MẠNH MẼ HƠN
                     let nextUrl = null;
                     const links = document.querySelectorAll('a');
                     for (let a of links) {
                         let text = a.innerText.toLowerCase();
-                        if (text.includes('next') || text.includes('tiếp') || text.includes('sau') || text.includes('下一章')) {
-                            nextUrl = a.href; break;
+                        // Bao hàm đa ngôn ngữ (Việt, Anh, Trung)
+                        if (text.includes('next') || text.includes('tiếp') || text.includes('sau') || text.includes('下一章') || text.includes('下一页')) {
+                            // Tránh việc nhấn nhầm vào "Truyện tiếp theo" hoặc mục lục
+                            if(a.href && a.href !== window.location.href && !a.href.includes('index') && !a.href.includes('list')) {
+                                nextUrl = a.href; 
+                                break;
+                            }
                         }
                     }
 
@@ -386,7 +474,7 @@ async function startFarmBot(startUrl) {
                 
                 if (result.nextUrl && result.nextUrl.startsWith('http')) {
                     currentUrl = result.nextUrl;
-                    await new Promise(r => setTimeout(r, 10000)); // Nghỉ 10s tránh quét IP
+                    await new Promise(r => setTimeout(r, 6000)); // Nghỉ 6s tránh bị web ban IP
                 } else {
                     botStatus.state = 'ĐÃ HẾT TRUYỆN';
                     addLog("🎉 KHÔNG TÌM THẤY CHƯƠNG TIẾP THEO. Kết thúc cày cuốc.", 'info');
@@ -395,8 +483,8 @@ async function startFarmBot(startUrl) {
 
             } catch (error) {
                 botStatus.totalErrors++; botStatus.state = 'Sụp đổ trình duyệt ảo!';
-                addLog(`Lỗi trang web, thử tải lại sau 30 giây... (${error.message})`, 'error');
-                await new Promise(r => setTimeout(r, 30000));
+                addLog(`Lỗi Timeout trang web, thử tải lại sau 15 giây... (${error.message})`, 'error');
+                await new Promise(r => setTimeout(r, 15000));
             }
         }
         
