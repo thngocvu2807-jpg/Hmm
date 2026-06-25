@@ -33,7 +33,6 @@ function addLog(msg, type = 'info') {
 // =========================================================================
 app.get('/api/status', (req, res) => res.json(botStatus));
 
-// Nhận lệnh BẮT ĐẦU từ Web
 app.post('/api/start', async (req, res) => {
     const { url, apiKey, shareCode, model, prompt } = req.body;
 
@@ -44,7 +43,6 @@ app.post('/api/start', async (req, res) => {
 
     res.json({ success: true, message: 'Đã nhận lệnh khởi động!' });
     
-    // Cấu hình linh hoạt theo người dùng gửi lên
     const config = {
         startUrl: url.trim(),
         geminiKey: apiKey.trim(),
@@ -57,7 +55,6 @@ app.post('/api/start', async (req, res) => {
     startFarmBot(config);
 });
 
-// Nhận lệnh DỪNG từ Web
 app.post('/api/stop', (req, res) => {
     if (!botStatus.isRunning) return res.status(400).json({ error: 'Bot vốn đã dừng!' });
     shouldStopBot = true;
@@ -73,30 +70,25 @@ app.get('/', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🤖 Trạm Điều Khiển Nông Trại AI</title>
+        <title>🤖 Trạm Điều Khiển Nông Trại AI (DOM TRANSLATE)</title>
         <style>
             body { background: #0f172a; color: #cbd5e1; font-family: monospace; margin: 0; padding: 20px; }
             .container { max-width: 900px; margin: auto; background: #1e293b; padding: 20px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; }
             h1 { color: #38bdf8; text-align: center; border-bottom: 2px dashed #334155; padding-bottom: 10px; margin-top: 0;}
-            
-            /* GIAO DIỆN CẤU HÌNH */
             .control-panel { background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #3b82f6; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
             .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
             input, select, textarea { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #475569; background: #1e293b; color: #fff; font-family: monospace; font-size: 14px; min-width: 200px; }
             textarea { resize: vertical; min-height: 80px; width: 100%; box-sizing: border-box;}
-            
             .btn-group { display: flex; gap: 10px; margin-top: 10px;}
             button { flex: 1; padding: 12px 20px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; font-family: monospace; font-size: 15px;}
             button:hover { opacity: 0.8; }
             .btn-start { background: #10b981; color: #fff; }
             .btn-stop { background: #ef4444; color: #fff; }
-
             .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
             .card { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
             .label { color: #94a3b8; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }
             .value { color: #fff; font-size: 15px; font-weight: bold; word-break: break-all; }
             .val-green { color: #10b981; } .val-red { color: #ef4444; } .val-yellow { color: #f59e0b; }
-            
             #log-box { background: #000; padding: 15px; border-radius: 8px; height: 350px; overflow-y: auto; font-size: 13px; line-height: 1.5; border: 1px solid #334155; }
             .log-time { color: #64748b; margin-right: 10px; }
             .log-info { color: #38bdf8; } .log-success { color: #10b981; } .log-error { color: #ef4444; } .log-warn { color: #f59e0b; }
@@ -104,7 +96,7 @@ app.get('/', (req, res) => {
     </head>
     <body>
         <div class="container">
-            <h1>🤖 ĐIỀU KHIỂN NÔNG TRẠI BOT P2P</h1>
+            <h1>🌐 BOT CÀO & DỊCH TOÀN BỘ DOM</h1>
             
             <div class="control-panel">
                 <div class="label" style="color: #3b82f6;">⚙️ CẤU HÌNH BOT CÀO DỮ LIỆU:</div>
@@ -114,23 +106,22 @@ app.get('/', (req, res) => {
                     <select id="bot-model">
                         <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Siêu nhanh - Khuyên dùng)</option>
                         <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                        <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
-                        <option value="gemini-1.5-pro">gemini-1.5-pro (Chậm, Dễ Limit)</option>
                     </select>
                 </div>
-                <textarea id="bot-prompt">Bạn là một dịch giả xuất sắc. Nhiệm vụ của bạn là dịch đoạn tiểu thuyết tiếng Trung/Anh sau sang Tiếng Việt chuẩn xác, mượt mà, đậm chất văn học. Tuyệt đối giữ nguyên định dạng đoạn văn, không cắt xén, không tự giải thích thêm.</textarea>
+                <textarea id="bot-prompt">Bạn là một dịch giả xuất sắc. Tôi sẽ gửi cho bạn một danh sách các đoạn văn bản (Text nodes) được trích xuất từ một trang web truyện. Nhiệm vụ của bạn là dịch tất cả sang tiếng Việt mượt mà. 
+QUY TẮC BẮT BUỘC SỐNG CÒN: Phải giữ nguyên định dạng đánh số [Đoạn X]. Không được gộp đoạn, không bỏ sót đoạn nào.</textarea>
                 <input type="url" id="bot-url" placeholder="Nhập Link chương đầu tiên (Ví dụ: https://www.69shuba.com/txt/83216/39104252)" />
                 
                 <div class="btn-group">
-                    <button class="btn-start" onclick="startBot()" id="btnStart">▶ KHỞI ĐỘNG CÀO 24/24</button>
+                    <button class="btn-start" onclick="startBot()" id="btnStart">▶ KHỞI ĐỘNG CÀO DỊCH DOM 24/24</button>
                     <button class="btn-stop" onclick="stopBot()" id="btnStop">⏹ DỪNG LẠI</button>
                 </div>
             </div>
 
             <div class="grid">
                 <div class="card"><div class="label">Trạng Thái Hoạt Động:</div><div class="value val-yellow" id="ui-state">Đang tải...</div></div>
-                <div class="card"><div class="label">Tiêu đề chương hiện tại:</div><div class="value val-green" id="ui-chapter">Chưa có</div></div>
-                <div class="card"><div class="label">Số chương đã dịch (Thành công):</div><div class="value val-green" id="ui-success">0</div></div>
+                <div class="card"><div class="label">Tiêu đề trang hiện tại:</div><div class="value val-green" id="ui-chapter">Chưa có</div></div>
+                <div class="card"><div class="label">Số trang đã dịch (Thành công):</div><div class="value val-green" id="ui-success">0</div></div>
                 <div class="card"><div class="label">Số lần gặp lỗi / sụp đổ:</div><div class="value val-red" id="ui-errors">0</div></div>
                 <div class="card" style="grid-column: span 2;"><div class="label">Đang làm việc tại URL:</div><div class="value" id="ui-url">Chưa có</div></div>
             </div>
@@ -159,7 +150,7 @@ app.get('/', (req, res) => {
                     const data = await res.json();
                     if(data.error) alert("Lỗi: " + data.error);
                 } catch(e) { alert("Lỗi mạng!"); }
-                document.getElementById('btnStart').innerText = "▶ KHỞI ĐỘNG CÀO 24/24";
+                document.getElementById('btnStart').innerText = "▶ KHỞI ĐỘNG CÀO DỊCH DOM 24/24";
             }
 
             async function stopBot() {
@@ -210,13 +201,13 @@ function startAntiSleep() {
 }
 
 // =========================================================================
-// HỆ THỐNG BOT CÀY CUỐC 24/24 THÔNG MINH
+// HỆ THỐNG BOT CÀY CUỐC 24/24 THÔNG MINH - DOM TRANSLATION MODE
 // =========================================================================
 async function startFarmBot(config) {
     botStatus.isRunning = true;
     botStatus.state = 'Đang khởi chạy Chrome ảo...';
     let currentUrl = config.startUrl;
-    addLog(`Chuẩn bị cào dữ liệu từ: ${currentUrl}`, 'info');
+    addLog(`Chuẩn bị quét toàn bộ DOM tại: ${currentUrl}`, 'info');
     
     let browser;
     try {
@@ -228,14 +219,11 @@ async function startFarmBot(config) {
         const page = await browser.newPage();
         await page.setViewport({ width: 1366, height: 768 });
 
-        // Chặn tải hình ảnh, CSS, Fonts để tối ưu RAM và tốc độ cào
+        // Chặn tải Ảnh, CSS, Fonts để chống văng bộ nhớ
         await page.setRequestInterception(true);
         page.on('request', (req) => {
-            if(['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-                req.abort();
-            } else {
-                req.continue();
-            }
+            if(['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) req.abort();
+            else req.continue();
         });
 
         await page.exposeFunction('reportStatusToNode', (type, message) => { addLog(message, type); });
@@ -247,13 +235,12 @@ async function startFarmBot(config) {
             window.BOT_PROMPT = \`${config.customPrompt}\`;
         `);
 
-        // Thuật toán Mã hóa và Nostr P2P
+        // Thuật toán Mã hóa, SHA256 và Nostr P2P
         await page.evaluateOnNewDocument(`
             window.BOT_CRYPTO = {
                 bufferToBase64(buffer) {
-                    let binary = '';
-                    const bytes = new Uint8Array(buffer);
-                    for (let i = 0; i < bytes.byteLength; i += 0x8000) { binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); }
+                    let binary = ''; const bytes = new Uint8Array(buffer);
+                    for (let i=0; i<bytes.byteLength; i+=0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
                     return btoa(binary);
                 },
                 async hashSHA256(text) {
@@ -331,11 +318,17 @@ async function startFarmBot(config) {
                 });
             };
             
-            // Hàm gọi AI linh hoạt theo Model và Prompt cấu hình
-            window.callGeminiAPI = async (textToTranslate) => {
+            // Hàm gọi AI dịch theo mảng
+            window.callGeminiAPI = async (textNodesArray) => {
                 const url = \`https://generativelanguage.googleapis.com/v1beta/models/\${window.BOT_MODEL}:generateContent?key=\${window.GEMINI_API_KEY}\`;
                 
-                const finalPrompt = window.BOT_PROMPT + "\\n\\n[NỘI DUNG CẦN DỊCH]:\\n" + textToTranslate;
+                // Nén mảng thành chuỗi có đánh số để bắt AI trả về đúng cấu trúc
+                let textToTranslate = "";
+                textNodesArray.forEach((text, index) => {
+                    textToTranslate += \`[Đoạn \${index}]: \${text}\\n\`;
+                });
+
+                const finalPrompt = window.BOT_PROMPT + "\\n\\nĐỊNH DẠNG ĐẦU RA BẮT BUỘC (Trả về tiếng Việt):\\n[Đoạn 0]: <Bản dịch>\\n[Đoạn 1]: <Bản dịch>\\n\\n[NỘI DUNG CẦN DỊCH]:\\n" + textToTranslate;
 
                 try {
                     const res = await fetch(url, {
@@ -346,7 +339,7 @@ async function startFarmBot(config) {
                     if (data.error) throw new Error(data.error.message);
                     return data.candidates[0].content.parts[0].text;
                 } catch(e) { 
-                    await window.reportStatusToNode('error', 'Lỗi API ' + window.BOT_MODEL + ': ' + e.message);
+                    await window.reportStatusToNode('error', 'Lỗi API: ' + e.message);
                     return null; 
                 }
             };
@@ -360,62 +353,72 @@ async function startFarmBot(config) {
             
             try {
                 await page.goto(currentUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                
-                // Đợi thêm 1s để JS render văn bản (Đặc trị 69shuba và trang lậu)
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 1500)); // Đợi JS nhả DOM
 
                 const result = await page.evaluate(async () => {
-                    await window.reportStatusToNode('info', 'Trang đã tải, đang quét tìm văn bản siêu tốc...');
+                    await window.reportStatusToNode('info', 'Trang đã tải, đang quét TOÀN BỘ Text Nodes (DOM)...');
                     
-                    // THUẬT TOÁN DOM HEURISTIC: Tự động vét cạn văn bản thông minh thay vì dựa vào Class cố định
-                    let contentContainer = null;
+                    // THUẬT TOÁN QUÉT TOÀN BỘ TEXT NODES (Như Google Translate Extension)
+                    const nodesToTranslate = [];
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+                    let node;
                     
-                    // 1. Thử các Class phổ biến nhất của web truyện (bao gồm cả 69shuba)
-                    const popularSelectors = ['#content', '.txtnav', '#chaptercontent', '.read-content', '.chapter-content', '.book_con', '#TextContent', 'article', 'main'];
-                    for (let sel of popularSelectors) {
-                        let el = document.querySelector(sel);
-                        if (el && el.innerText.trim().length > 300) { 
-                            contentContainer = el; 
-                            break; 
+                    while (node = walker.nextNode()) {
+                        const parent = node.parentNode;
+                        if (parent && ['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME'].includes(parent.nodeName)) continue;
+                        
+                        const text = node.nodeValue.trim();
+                        // Chỉ lấy các đoạn chứa chữ cái, tránh dịch icon, khoảng trắng, hoặc rác HTML
+                        if (text.length > 0 && /[a-zA-Z\u00C0-\u00FF\u0100-\u017F\u0400-\u04FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) {
+                            nodesToTranslate.push(text);
                         }
                     }
 
-                    // 2. Tự động bấu víu: Nếu vẫn không tìm thấy, quét toàn bộ thẻ DIV để tìm cục chứa nhiều chữ nhất
-                    if (!contentContainer) {
-                        let maxLen = 0;
-                        document.querySelectorAll('div, section').forEach(el => {
-                            let textLen = el.innerText.trim().length;
-                            // Bỏ qua các thẻ chứa quá nhiều link (thường là footer, header, menu)
-                            let aCount = el.querySelectorAll('a').length;
-                            if (textLen > maxLen && aCount < 10) {
-                                maxLen = textLen;
-                                contentContainer = el;
-                            }
-                        });
-                    }
+                    // Lấy thêm Text từ nút bấm, placeholder (Ô nhập liệu), và alt ảnh
+                    document.querySelectorAll('input[type="button"], input[type="submit"]').forEach(el => { if(el.value.trim()) nodesToTranslate.push(el.value.trim()); });
+                    document.querySelectorAll('input[placeholder]').forEach(el => { if(el.placeholder.trim()) nodesToTranslate.push(el.placeholder.trim()); });
+                    document.querySelectorAll('img[alt]').forEach(el => { if(el.alt.trim()) nodesToTranslate.push(el.alt.trim()); });
 
-                    if (!contentContainer) return { error: "Không tìm thấy nội dung truyện (Trang có thể bị lỗi, captcha, hoặc rỗng)." };
+                    // Lọc trùng lặp để tiết kiệm Token cho API
+                    const uniqueTexts = [...new Set(nodesToTranslate)];
 
-                    // Dọn dẹp rác HTML (script, style, quảng cáo chìm) trước khi lấy chữ
-                    const clonedContainer = contentContainer.cloneNode(true);
-                    clonedContainer.querySelectorAll('script, style, iframe, nav, header, footer').forEach(e => e.remove());
-                    
-                    const rawText = clonedContainer.innerText.substring(0, 5000); 
-                    
                     let title = document.title;
                     const titleEl = document.querySelector('h1, .chapter-title, .title');
                     if (titleEl) title = titleEl.innerText;
 
-                    if (!rawText || rawText.trim().length < 150) return { error: "Văn bản quét được quá ngắn (Dưới 150 ký tự)." };
+                    if (uniqueTexts.length === 0) return { error: "DOM trống hoặc bị ẩn hoàn toàn." };
 
-                    await window.reportStatusToNode('warn', `Bắt đầu gửi ${rawText.length} ký tự cho AI [${window.BOT_MODEL}]...`);
+                    await window.reportStatusToNode('warn', `Tìm thấy ${uniqueTexts.length} cụm từ/đoạn văn độc lập. Bắt đầu gửi AI dịch...`);
                     
-                    // GỌI AI DỊCH THUẬT
-                    const translatedText = await window.callGeminiAPI(rawText);
+                    // GỌI AI DỊCH THUẬT THEO MẢNG
+                    // Lưu ý: Nếu web quá lớn (>500 nodes), API có thể bị quá tải. Gemini 3.1 Flash xử lý rất tốt text lớn.
+                    const aiResponse = await window.callGeminiAPI(uniqueTexts);
                     
-                    if (!translatedText) return { error: "Lỗi phản hồi từ Gemini (Có thể hết Quota API hoặc Limit)." };
-                    await window.reportStatusToNode('success', `Dịch thành công! (${translatedText.length} ký tự). Đang mã hóa và tải lên P2P...`);
+                    if (!aiResponse) return { error: "Lỗi phản hồi từ Gemini." };
 
+                    await window.reportStatusToNode('info', `Đã nhận bản dịch. Đang trích xuất và ghép Hash...`);
+
+                    // PHÂN TÍCH KẾT QUẢ AI VÀ TẠO TỪ ĐIỂN MAPPING (HASH -> BẢN DỊCH)
+                    const mappingDict = {};
+                    const regex = /(?:\[Đoạn (\d+)\]):?\s*([\s\S]*?)(?=\n\[Đoạn \d+\]|$)/g;
+                    let match;
+                    let mappedCount = 0;
+
+                    while ((match = regex.exec(aiResponse)) !== null) {
+                        const idx = parseInt(match[1]);
+                        const transText = match[2].replace(/\*\*/g, '').replace(/\[Đoạn \d+\]/g, '').trim();
+                        
+                        if (uniqueTexts[idx] && transText.length > 0) {
+                            const originalText = uniqueTexts[idx];
+                            const hash = await window.BOT_CRYPTO.hashSHA256(originalText);
+                            mappingDict[hash] = transText;
+                            mappedCount++;
+                        }
+                    }
+
+                    await window.reportStatusToNode('success', `Giải mã thành công ${mappedCount}/${uniqueTexts.length} đoạn. Đang đẩy Data Node lên P2P...`);
+
+                    // LƯU TRỮ LÊN NOSTR (ĐÚNG CẤU TRÚC ĐỂ APP_READ.JS NHẬN DIỆN VÀ ĐẮP LÊN WEB TỨC THỜI)
                     const getUrlHash = (url) => {
                         let u = url.split('?')[0].split('#')[0]; if (u.endsWith('/')) u = u.slice(0, -1);
                         const encoded = encodeURIComponent(u).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1));
@@ -437,23 +440,24 @@ async function startFarmBot(config) {
                     const keyUrlHash = await window.BOT_CRYPTO.hashSHA256(cidHash + "_dom_mapping");
                     const keySmartHash = await window.BOT_CRYPTO.hashSHA256(smartHash + "_dom_mapping");
                     
-                    const syncPayload = { mapping: { "auto_gen_hash": translatedText }, text: translatedText, time: Date.now() };
+                    // Gói hàng: mappingDict chính là mấu chốt để web dịch
+                    const syncPayload = { mapping: mappingDict, time: Date.now() };
                     
                     await window.publishToNostr(keyUrlHash, syncPayload);
                     await window.publishToNostr(keySmartHash, syncPayload);
 
-                    const chapPayload = { chapters: [{ id: cidHash, n: "Nông trại Bot P2P", c: title, u: window.location.href, t: Date.now(), a: "AI " + window.BOT_MODEL, summary: translatedText.substring(0, 250) + "..." }], time: Date.now() };
+                    // Lấy đại đoạn văn dài nhất làm summary cho thư viện
+                    let longestTrans = Object.values(mappingDict).reduce((a, b) => a.length > b.length ? a : b, "");
+                    const chapPayload = { chapters: [{ id: cidHash, n: "DOM Translated Novel", c: title, u: window.location.href, t: Date.now(), a: "AI " + window.BOT_MODEL, summary: longestTrans.substring(0, 250) + "..." }], time: Date.now() };
                     const keyChapters = await window.BOT_CRYPTO.hashSHA256("P2P_CHAPTERS_" + window.BOT_SHARE_CODE);
                     await window.publishToNostr(keyChapters, chapPayload);
 
-                    // THUẬT TOÁN TÌM NÚT "CHƯƠNG TIẾP THEO" MẠNH MẼ HƠN
+                    // TÌM CHƯƠNG TIẾP THEO (Vẫn dùng Regex trên nội dung nguyên bản)
                     let nextUrl = null;
                     const links = document.querySelectorAll('a');
                     for (let a of links) {
                         let text = a.innerText.toLowerCase();
-                        // Bao hàm đa ngôn ngữ (Việt, Anh, Trung)
                         if (text.includes('next') || text.includes('tiếp') || text.includes('sau') || text.includes('下一章') || text.includes('下一页')) {
-                            // Tránh việc nhấn nhầm vào "Truyện tiếp theo" hoặc mục lục
                             if(a.href && a.href !== window.location.href && !a.href.includes('index') && !a.href.includes('list')) {
                                 nextUrl = a.href; 
                                 break;
@@ -461,7 +465,7 @@ async function startFarmBot(config) {
                         }
                     }
 
-                    return { success: true, nextUrl: nextUrl, title: title };
+                    return { success: true, nextUrl: nextUrl, title: title, mapped: mappedCount };
                 });
 
                 if (result.error) {
@@ -470,7 +474,7 @@ async function startFarmBot(config) {
                 }
 
                 botStatus.totalTranslated++; botStatus.currentChapter = result.title; botStatus.state = 'Đang nghỉ ngơi (Chống Block)...';
-                addLog(`✅ Thành công đẩy lên P2P: ${result.title}`, 'success');
+                addLog(`✅ Thành công đẩy lên P2P: ${result.title} (Map được ${result.mapped} cụm từ)`, 'success');
                 
                 if (result.nextUrl && result.nextUrl.startsWith('http')) {
                     currentUrl = result.nextUrl;
