@@ -110,7 +110,7 @@ app.get('/', (req, res) => {
                 </div>
                 <textarea id="bot-prompt">Bạn là một dịch giả xuất sắc. Tôi sẽ gửi cho bạn một danh sách các đoạn văn bản (Text nodes) được trích xuất từ một trang web truyện. Nhiệm vụ của bạn là dịch tất cả sang tiếng Việt mượt mà. 
 QUY TẮC BẮT BUỘC SỐNG CÒN: Phải giữ nguyên định dạng đánh số [Đoạn X]. Không được gộp đoạn, không bỏ sót đoạn nào.</textarea>
-                <input type="url" id="bot-url" placeholder="Nhập Link chương đầu tiên (Ví dụ: https://www.69shuba.com/txt/83216/39104252)" />
+                <input type="url" id="bot-url" placeholder="Nhập Link chương đầu (Ví dụ: https://www.69shuba.com/txt/83216/39104252)" />
                 
                 <div class="btn-group">
                     <button class="btn-start" onclick="startBot()" id="btnStart">▶ KHỞI ĐỘNG CÀO DỊCH DOM 24/24</button>
@@ -228,11 +228,12 @@ async function startFarmBot(config) {
 
         await page.exposeFunction('reportStatusToNode', (type, message) => { addLog(message, type); });
 
+        // Đẩy tham số vào trình duyệt một cách an toàn (dùng JSON.stringify để tránh lỗi escape chars trong prompt)
         await page.evaluateOnNewDocument(`
-            window.BOT_SHARE_CODE = "${config.shareCode}";
-            window.GEMINI_API_KEY = "${config.geminiKey}";
-            window.BOT_MODEL = "${config.model}";
-            window.BOT_PROMPT = \`${config.customPrompt}\`;
+            window.BOT_SHARE_CODE = ${JSON.stringify(config.shareCode)};
+            window.GEMINI_API_KEY = ${JSON.stringify(config.geminiKey)};
+            window.BOT_MODEL = ${JSON.stringify(config.model)};
+            window.BOT_PROMPT = ${JSON.stringify(config.customPrompt)};
         `);
 
         // Thuật toán Mã hóa, SHA256 và Nostr P2P
@@ -285,7 +286,6 @@ async function startFarmBot(config) {
                                 s.onload = r; document.head.appendChild(s);
                             });
                         }
-                        
                         const tools = window.NostrTools;
                         const privateKeyHex = await window.BOT_CRYPTO.hashSHA256(window.BOT_SHARE_CODE);
                         let pubKeyHex;
@@ -318,24 +318,19 @@ async function startFarmBot(config) {
                 });
             };
             
-            // Hàm gọi AI dịch theo mảng
-            window.callGeminiAPI = async (textNodesArray) => {
+            // Lõi gọi AI (Chỉ gửi text lên, không tự chia mảng nữa)
+            window.callGeminiAPI_Core = async (finalPrompt) => {
                 const url = \`https://generativelanguage.googleapis.com/v1beta/models/\${window.BOT_MODEL}:generateContent?key=\${window.GEMINI_API_KEY}\`;
-                
-                // Nén mảng thành chuỗi có đánh số để bắt AI trả về đúng cấu trúc
-                let textToTranslate = "";
-                textNodesArray.forEach((text, index) => {
-                    textToTranslate += \`[Đoạn \${index}]: \${text}\\n\`;
-                });
-
-                const finalPrompt = window.BOT_PROMPT + "\\n\\nĐỊNH DẠNG ĐẦU RA BẮT BUỘC (Trả về tiếng Việt):\\n[Đoạn 0]: <Bản dịch>\\n[Đoạn 1]: <Bản dịch>\\n\\n[NỘI DUNG CẦN DỊCH]:\\n" + textToTranslate;
-
                 try {
                     const res = await fetch(url, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }], generationConfig: { temperature: 0.1 } })
                     });
                     const data = await res.json();
+                    if (!data.candidates || data.candidates.length === 0) {
+                         let errReason = data.promptFeedback ? JSON.stringify(data.promptFeedback) : JSON.stringify(data);
+                         throw new Error("API chặn nội dung hoặc trả về rỗng. Log: " + errReason);
+                    }
                     if (data.error) throw new Error(data.error.message);
                     return data.candidates[0].content.parts[0].text;
                 } catch(e) { 
@@ -358,7 +353,6 @@ async function startFarmBot(config) {
                 const result = await page.evaluate(async () => {
                     await window.reportStatusToNode('info', 'Trang đã tải, đang quét TOÀN BỘ Text Nodes (DOM)...');
                     
-                    // THUẬT TOÁN QUÉT TOÀN BỘ TEXT NODES (Như Google Translate Extension)
                     const nodesToTranslate = [];
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
                     let node;
@@ -368,18 +362,16 @@ async function startFarmBot(config) {
                         if (parent && ['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME'].includes(parent.nodeName)) continue;
                         
                         const text = node.nodeValue.trim();
-                        // Chỉ lấy các đoạn chứa chữ cái, tránh dịch icon, khoảng trắng, hoặc rác HTML
+                        // Lọc các đoạn có chứa chữ cái thực sự
                         if (text.length > 0 && /[a-zA-Z\u00C0-\u00FF\u0100-\u017F\u0400-\u04FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) {
                             nodesToTranslate.push(text);
                         }
                     }
 
-                    // Lấy thêm Text từ nút bấm, placeholder (Ô nhập liệu), và alt ảnh
                     document.querySelectorAll('input[type="button"], input[type="submit"]').forEach(el => { if(el.value.trim()) nodesToTranslate.push(el.value.trim()); });
                     document.querySelectorAll('input[placeholder]').forEach(el => { if(el.placeholder.trim()) nodesToTranslate.push(el.placeholder.trim()); });
                     document.querySelectorAll('img[alt]').forEach(el => { if(el.alt.trim()) nodesToTranslate.push(el.alt.trim()); });
 
-                    // Lọc trùng lặp để tiết kiệm Token cho API
                     const uniqueTexts = [...new Set(nodesToTranslate)];
 
                     let title = document.title;
@@ -388,37 +380,56 @@ async function startFarmBot(config) {
 
                     if (uniqueTexts.length === 0) return { error: "DOM trống hoặc bị ẩn hoàn toàn." };
 
-                    await window.reportStatusToNode('warn', `Tìm thấy ${uniqueTexts.length} cụm từ/đoạn văn độc lập. Bắt đầu gửi AI dịch...`);
-                    
-                    // GỌI AI DỊCH THUẬT THEO MẢNG
-                    // Lưu ý: Nếu web quá lớn (>500 nodes), API có thể bị quá tải. Gemini 3.1 Flash xử lý rất tốt text lớn.
-                    const aiResponse = await window.callGeminiAPI(uniqueTexts);
-                    
-                    if (!aiResponse) return { error: "Lỗi phản hồi từ Gemini." };
+                    await window.reportStatusToNode('warn', `Tìm thấy ${uniqueTexts.length} Nodes. Bắt đầu chia lô (Batching) để dịch...`);
 
-                    await window.reportStatusToNode('info', `Đã nhận bản dịch. Đang trích xuất và ghép Hash...`);
-
-                    // PHÂN TÍCH KẾT QUẢ AI VÀ TẠO TỪ ĐIỂN MAPPING (HASH -> BẢN DỊCH)
+                    // =========================================================================
+                    // THUẬT TOÁN BATCHING (CHIA NHỎ DOM) - KHẮC PHỤC LỖI QUÁ TẢI API
+                    // =========================================================================
                     const mappingDict = {};
-                    const regex = /(?:\[Đoạn (\d+)\]):?\s*([\s\S]*?)(?=\n\[Đoạn \d+\]|$)/g;
-                    let match;
+                    const BATCH_SIZE = 50; // Dịch 50 node một lần
                     let mappedCount = 0;
-
-                    while ((match = regex.exec(aiResponse)) !== null) {
-                        const idx = parseInt(match[1]);
-                        const transText = match[2].replace(/\*\*/g, '').replace(/\[Đoạn \d+\]/g, '').trim();
+                    
+                    // Duyệt từng lô
+                    for (let i = 0; i < uniqueTexts.length; i += BATCH_SIZE) {
+                        const batch = uniqueTexts.slice(i, i + BATCH_SIZE);
+                        await window.reportStatusToNode('info', `Đang dịch lô ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(uniqueTexts.length/BATCH_SIZE)} (${batch.length} nodes)...`);
                         
-                        if (uniqueTexts[idx] && transText.length > 0) {
-                            const originalText = uniqueTexts[idx];
-                            const hash = await window.BOT_CRYPTO.hashSHA256(originalText);
-                            mappingDict[hash] = transText;
-                            mappedCount++;
+                        let textToTranslate = "";
+                        batch.forEach((text, index) => {
+                            textToTranslate += `[Đoạn ${index}]: ${text}\n`;
+                        });
+
+                        const finalPrompt = window.BOT_PROMPT + "\n\nĐỊNH DẠNG ĐẦU RA BẮT BUỘC (Trả về tiếng Việt):\n[Đoạn 0]: <Bản dịch>\n[Đoạn 1]: <Bản dịch>\n\n[NỘI DUNG CẦN DỊCH]:\n" + textToTranslate;
+
+                        const aiResponse = await window.callGeminiAPI_Core(finalPrompt);
+                        
+                        if (aiResponse) {
+                            const regex = /(?:\[Đoạn (\d+)\]):?\s*([\s\S]*?)(?=\n\[Đoạn \d+\]|$)/g;
+                            let match;
+                            while ((match = regex.exec(aiResponse)) !== null) {
+                                const localIdx = parseInt(match[1]);
+                                const transText = match[2].replace(/\*\*/g, '').replace(/\[Đoạn \d+\]/g, '').trim();
+                                
+                                if (batch[localIdx] && transText.length > 0) {
+                                    const originalText = batch[localIdx];
+                                    const hash = await window.BOT_CRYPTO.hashSHA256(originalText);
+                                    mappingDict[hash] = transText;
+                                    mappedCount++;
+                                }
+                            }
+                        } else {
+                            await window.reportStatusToNode('warn', `Lô ${Math.floor(i/BATCH_SIZE) + 1} bị lọt hố (API trả null). Bỏ qua và dịch lô tiếp...`);
                         }
+                        
+                        // Nghỉ 1s giữa các lô để API Gemini không chửi spam
+                        await new Promise(r => setTimeout(r, 1000));
                     }
+
+                    if (mappedCount === 0) return { error: "Không dịch được Node nào. Xem lại API Key hoặc Limit." };
 
                     await window.reportStatusToNode('success', `Giải mã thành công ${mappedCount}/${uniqueTexts.length} đoạn. Đang đẩy Data Node lên P2P...`);
 
-                    // LƯU TRỮ LÊN NOSTR (ĐÚNG CẤU TRÚC ĐỂ APP_READ.JS NHẬN DIỆN VÀ ĐẮP LÊN WEB TỨC THỜI)
+                    // LƯU TRỮ LÊN NOSTR
                     const getUrlHash = (url) => {
                         let u = url.split('?')[0].split('#')[0]; if (u.endsWith('/')) u = u.slice(0, -1);
                         const encoded = encodeURIComponent(u).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1));
@@ -440,19 +451,18 @@ async function startFarmBot(config) {
                     const keyUrlHash = await window.BOT_CRYPTO.hashSHA256(cidHash + "_dom_mapping");
                     const keySmartHash = await window.BOT_CRYPTO.hashSHA256(smartHash + "_dom_mapping");
                     
-                    // Gói hàng: mappingDict chính là mấu chốt để web dịch
                     const syncPayload = { mapping: mappingDict, time: Date.now() };
                     
                     await window.publishToNostr(keyUrlHash, syncPayload);
                     await window.publishToNostr(keySmartHash, syncPayload);
 
-                    // Lấy đại đoạn văn dài nhất làm summary cho thư viện
+                    // Lấy đại đoạn văn dài nhất làm summary cho mục lục thư viện
                     let longestTrans = Object.values(mappingDict).reduce((a, b) => a.length > b.length ? a : b, "");
                     const chapPayload = { chapters: [{ id: cidHash, n: "DOM Translated Novel", c: title, u: window.location.href, t: Date.now(), a: "AI " + window.BOT_MODEL, summary: longestTrans.substring(0, 250) + "..." }], time: Date.now() };
                     const keyChapters = await window.BOT_CRYPTO.hashSHA256("P2P_CHAPTERS_" + window.BOT_SHARE_CODE);
                     await window.publishToNostr(keyChapters, chapPayload);
 
-                    // TÌM CHƯƠNG TIẾP THEO (Vẫn dùng Regex trên nội dung nguyên bản)
+                    // TÌM CHƯƠNG TIẾP THEO
                     let nextUrl = null;
                     const links = document.querySelectorAll('a');
                     for (let a of links) {
